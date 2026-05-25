@@ -790,7 +790,12 @@ static void handle_input(void) {
         return;
     }
 
+    int pr = cursor_r, pc = cursor_c;
     switch (ch) {
+        case 'k': case 'K': cursor_r = (cursor_r - 1 + cfg.rows) % cfg.rows; break; /* Up */
+        case 'j': case 'J': cursor_r = (cursor_r + 1) % cfg.rows;            break; /* Down */
+        case 'h': case 'H': cursor_c = (cursor_c - 1 + cfg.cols) % cfg.cols; break; /* Left */
+        case 'l': case 'L': cursor_c = (cursor_c + 1) % cfg.cols;            break; /* Right */
         case ' ':           game_open_cell(cursor_r, cursor_c);   flush_dirty(); break;
         case 'f': case 'F': game_toggle_flag(cursor_r, cursor_c); flush_dirty(); break;
         case 'r': case 'R': game_reset(); full_redraw(); break;
@@ -800,6 +805,13 @@ static void handle_input(void) {
             free(board);
             free(dirty_list);
             exit(0);
+    }
+
+    if (cursor_r != pr || cursor_c != pc) {
+        dirty_add(pr, pc);
+        dirty_add(cursor_r, cursor_c);
+        dirty_status();
+        flush_dirty();
     }
 }
 #endif
