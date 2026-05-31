@@ -235,20 +235,24 @@ static void dirty_status(void) { dirty_add(DIRTY_STATUS, 0); }
 /* ------------------------------------------------------------------ */
 /* MATHEMATICAL CORE ENGINE & SOLVER                                 */
 /* ------------------------------------------------------------------ */
+static int calc_adj_kind(int r, int c, int kind) {
+    int cnt = 0;
+    for (int i = -1; i <= 1; i++) {
+        for (int j = -1; j <= 1; j++) {
+            int nr = r+i, nc = c+j;
+            if (nr >= 0 && nr < cfg.rows && nc >= 0 && nc < cfg.cols)
+                if (board[nr * cfg.cols + nc].flags & kind) cnt++;
+        }
+    }
+    return cnt;
+}
+
 static void recalc_adj(void) {
-    int r, c, i, j;
+    int r, c;
     for (r = 0; r < cfg.rows; r++) {
         for (c = 0; c < cfg.cols; c++) {
             if (board[r * cfg.cols + c].flags & CELL_MINE) continue;
-            int cnt = 0;
-            for (i = -1; i <= 1; i++) {
-                for (j = -1; j <= 1; j++) {
-                    int nr = r+i, nc = c+j;
-                    if (nr >= 0 && nr < cfg.rows && nc >= 0 && nc < cfg.cols)
-                        if (board[nr * cfg.cols + nc].flags & CELL_MINE) cnt++;
-                }
-            }
-            board[r * cfg.cols + c].adj = (unsigned char)cnt;
+            board[r * cfg.cols + c].adj = (unsigned char)calc_adj_kind(r, c, CELL_MINE);
         }
     }
 }
@@ -387,7 +391,20 @@ static void init_board(int first_r, int first_c) {
 static void reveal_cell(int r, int c) {
     if (r < 0 || r >= cfg.rows || c < 0 || c >= cfg.cols) return;
     Cell *cell = &board[r * cfg.cols + c];
-    if (cell->flags & CELL_REVEALED) return;
+    if (cell->flags & CELL_REVEALED) {
+        if (calc_adj_kind(r, c, CELL_FLAGGED) != cell->adj) return;
+        for (int i = -1; i <= 1; i++) {
+            for (int j = -1; j <= 1; j++) {
+                int nr = r+i, nc = c+j;
+                if (nr >= 0 && nr < cfg.rows && nc >= 0 && nc < cfg.cols) {
+                    if (board[nr * cfg.cols + nc].flags & CELL_REVEALED ||
+                        board[nr * cfg.cols + nc].flags & CELL_FLAGGED) continue;
+                    reveal_cell(nr, nc);
+                }
+            }
+        }
+        return;
+    }
     if (cell->flags & CELL_FLAGGED)  return;
     cell->flags |= CELL_REVEALED;
     revealed_count++;
@@ -416,7 +433,6 @@ static void reveal_all_mines(void) {
 static void game_open_cell(int r, int c) {
     if (game_over) return;
     Cell *cell = &board[r * cfg.cols + c];
-    if (cell->flags & CELL_REVEALED) return;
     if (cell->flags & CELL_FLAGGED)  return;
 
     if (!board_generated) {
